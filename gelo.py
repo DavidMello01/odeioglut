@@ -1,7 +1,6 @@
 import glfw
 from OpenGL.GL import *
 from OpenGL.GLU import *
-from OpenGL.GLUT import glutInit, glutSolidCube, glutSolidSphere
 import numpy as np
 
 def init_window(width, height, title):
@@ -13,6 +12,7 @@ def init_window(width, height, title):
         raise Exception("Janela GLFW não pôde ser criada")
     glfw.make_context_current(window)
     return window
+
 
 def iluminar():
     glEnable(GL_LIGHTING)
@@ -27,61 +27,80 @@ def iluminar():
     glMaterialfv(GL_FRONT, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
     glMaterialf(GL_FRONT, GL_SHININESS, 80.0)
 
+def desenhar_cubo_unitario():
+    # Desenha um cubo unitário centrado na origem usando GL_QUADS
+    hs = 0.5  # Half size
+    vertices = [
+        [-hs, -hs, -hs], [hs, -hs, -hs], [hs, hs, -hs], [-hs, hs, -hs],  # Traseira
+        [-hs, -hs, hs], [hs, -hs, hs], [hs, hs, hs], [-hs, hs, hs]       # Frontal
+    ]
+    faces = [
+        [0, 1, 2, 3],  # Traseira
+        [4, 5, 6, 7],  # Frontal
+        [0, 1, 5, 4],  # Inferior
+        [2, 3, 7, 6],  # Superior
+        [0, 3, 7, 4],  # Esquerda
+        [1, 2, 6, 5],  # Direita
+    ]
+    glBegin(GL_QUADS)
+    for face in faces:
+        for vertex in face:
+            glVertex3fv(vertices[vertex])
+    glEnd()
+
 def desenhar_cubo_arredondado():
     size = 1.0
     r = 0.2
     steps = 20
 
+    # Cubo central
     glPushMatrix()
     glScalef(size - 2*r, size - 2*r, size - 2*r)
-    glutSolidCube(1.0)
+    desenhar_cubo_unitario()
     glPopMatrix()
 
+    # Esferas nos cantos
+    quad = gluNewQuadric()
     for dx in [-1, 1]:
         for dy in [-1, 1]:
             for dz in [-1, 1]:
                 glPushMatrix()
                 glTranslatef(dx*(size/2 - r), dy*(size/2 - r), dz*(size/2 - r))
-                glutSolidSphere(r, steps, steps)
+                gluSphere(quad, r, steps, steps)
                 glPopMatrix()
 
+    # Cilindros entre os cantos
     def cilindro_entre(p1, p2):
         dir = np.array(p2) - np.array(p1)
         length = np.linalg.norm(dir)
         if length == 0:
             return
         dir = dir / length
-
-        angle = np.arccos(np.dot(dir, [0, 0, 1])) * 180 / np.pi
+        angle = np.degrees(np.arccos(np.dot(dir, [0, 0, 1])))
         axis = np.cross([0, 0, 1], dir)
         glPushMatrix()
         glTranslatef(*p1)
         if np.linalg.norm(axis) > 0:
             glRotatef(angle, *axis)
-        quad = gluNewQuadric()
-        gluCylinder(quad, r, r, length, steps, 1)
-        gluDeleteQuadric(quad)
+        gluCylinder(gluNewQuadric(), r, r, length, steps, 1)
         glPopMatrix()
 
     pontos = [-1, 1]
-    arestas = []
     for x in pontos:
         for y in pontos:
             for z in pontos:
+                cx = x * (size/2 - r)
+                cy = y * (size/2 - r)
+                cz = z * (size/2 - r)
                 if x == -1:
-                    arestas.append(((x*(size/2 - r), y*(size/2 - r), z*(size/2 - r)),
-                                    ((x+2)*(size/2 - r), y*(size/2 - r), z*(size/2 - r))))
+                    cilindro_entre((cx, cy, cz), (cx + size - 2*r, cy, cz))
                 if y == -1:
-                    arestas.append(((x*(size/2 - r), y*(size/2 - r), z*(size/2 - r)),
-                                    (x*(size/2 - r), (y+2)*(size/2 - r), z*(size/2 - r))))
+                    cilindro_entre((cx, cy, cz), (cx, cy + size - 2*r, cz))
                 if z == -1:
-                    arestas.append(((x*(size/2 - r), y*(size/2 - r), z*(size/2 - r)),
-                                    (x*(size/2 - r), y*(size/2 - r), (z+2)*(size/2 - r))))
-    for a, b in arestas:
-        cilindro_entre(a, b)
+                    cilindro_entre((cx, cy, cz), (cx, cy, cz + size - 2*r))
+    gluDeleteQuadric(quad)
 
 def main():
-    glutInit()  
     window = init_window(800, 600, "Cubo de Inox com Cantos Arredondados")
     
     glEnable(GL_DEPTH_TEST)
